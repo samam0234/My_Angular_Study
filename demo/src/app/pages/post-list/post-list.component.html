@@ -1,22 +1,29 @@
 <section class="practice">
-  <h2>study7 — HttpClient + RxJS(map/switchMap/catchError)</h2>
+  <h2>study9 — RxJS 심화(combineLatest) + 즐겨찾기 상태관리</h2>
   <p>JSONPlaceholder(공개 목업 API)에서 게시글을 가져옵니다. userId(1~10)로 필터링하면 이전 요청은 자동으로 취소됩니다.</p>
 
   <input [formControl]="userIdControl" placeholder="userId로 필터 (1~10, 비우면 전체)" />
 
-  @if (loading) {
-    <p>불러오는 중...</p>
-  } @else if (errorMessage) {
-    <p class="error-text">{{ errorMessage }}</p>
-  } @else if (posts.length === 0) {
-    <p>게시글이 없습니다.</p>
+  @if (viewModel$ | async; as posts) {
+    @if (loading) {
+      <p>불러오는 중...</p>
+    } @else if (errorMessage) {
+      <p class="error-text">{{ errorMessage }}</p>
+    } @else if (posts.length === 0) {
+      <p>게시글이 없습니다.</p>
+    } @else {
+      <ul class="fruit-list">
+        @for (post of posts; track post.id) {
+          <li class="fruit-card">
+            <a [routerLink]="['/posts', post.id]">{{ post.title }}</a>
+            <button [class.active]="post.isFavorite" (click)="toggleFavorite(post.id)">
+              {{ post.isFavorite ? '★ 즐겨찾기 취소' : '☆ 즐겨찾기' }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
   } @else {
-    <ul class="fruit-list">
-      @for (post of posts; track post.id) {
-        <li class="fruit-card">
-          <a [routerLink]="['/posts', post.id]">{{ post.title }}</a>
-        </li>
-      }
-    </ul>
+    <p>불러오는 중...</p>
   }
 </section>
