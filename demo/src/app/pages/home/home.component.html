@@ -11,3 +11,10 @@
 @if (showStockMonitor) {
   <app-fruit-stock-monitor />
 }
+
+<app-likeable-fruit-list />
+
+<app-login-form-practice (loginAttempt)="onLoginAttempt($event)" />
+@if (lastLoginAttempt) {
+  <p>{{ lastLoginAttempt }}</p>
+}

@@ -1,0 +1,6 @@
+<li class="fruit-card">
+  <span class="name">{{ fruit.name }}</span>
+  <button [class.active]="liked" (click)="onToggle()">
+    {{ liked ? '♥ 좋아요 취소' : '♡ 좋아요' }}
+  </button>
+</li>

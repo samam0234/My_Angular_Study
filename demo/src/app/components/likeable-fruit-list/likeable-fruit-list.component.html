@@ -1,0 +1,13 @@
+<section class="practice">
+  <h2>study4 — &#64;Output (자식 → 부모 통신)</h2>
+  <p>좋아요 <strong>{{ likedIds.size }}</strong>개</p>
+  <ul class="fruit-list">
+    @for (fruit of fruits; track fruit.id) {
+      <app-fruit-like-item
+        [fruit]="fruit"
+        [liked]="isLiked(fruit.id)"
+        (likeToggled)="onLikeToggled($event)"
+      />
+    }
+  </ul>
+</section>

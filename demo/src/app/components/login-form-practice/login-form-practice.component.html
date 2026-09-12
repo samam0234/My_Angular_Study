@@ -1,0 +1,18 @@
+<section class="practice">
+  <h2>study4 — Reactive Forms</h2>
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="actions" style="flex-direction: column; align-items: flex-start;">
+    <div>
+      <input formControlName="username" placeholder="아이디 (2자 이상)" />
+      @if (username.invalid && username.touched) {
+        <p class="error-text">아이디는 2자 이상 입력해야 합니다.</p>
+      }
+    </div>
+    <div>
+      <input formControlName="password" type="password" placeholder="비밀번호 (4자 이상)" />
+      @if (password.invalid && password.touched) {
+        <p class="error-text">비밀번호는 4자 이상 입력해야 합니다.</p>
+      }
+    </div>
+    <button type="submit">로그인 시도</button>
+  </form>
+</section>
