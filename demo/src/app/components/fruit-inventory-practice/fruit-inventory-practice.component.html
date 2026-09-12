@@ -1,0 +1,24 @@
+<section class="practice">
+  <h2>study2 — 배열 상태 추가/삭제</h2>
+  <p>React처럼 <code>[...fruits, newItem]</code>으로 새 배열을 만들어 대입합니다(불변성 습관은 동일하게 유지하는 것을 권장).</p>
+
+  <div class="actions">
+    <input
+      [(ngModel)]="newFruitName"
+      (keyup.enter)="addFruit()"
+      placeholder="추가할 과일 이름"
+    />
+    <button (click)="addFruit()">추가</button>
+  </div>
+
+  <ul class="fruit-list">
+    @for (fruit of fruits; track fruit.id) {
+      <li class="fruit-card">
+        <span class="name">{{ fruit.name }} ({{ fruit.stock }}개)</span>
+        <button (click)="removeFruit(fruit.id)">삭제</button>
+      </li>
+    } @empty {
+      <li>재고 목록이 비었습니다.</li>
+    }
+  </ul>
+</section>

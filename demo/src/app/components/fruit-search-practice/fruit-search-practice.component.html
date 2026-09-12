@@ -1,0 +1,15 @@
+<section class="practice">
+  <h2>study2 — [(ngModel)] 양방향 바인딩</h2>
+  <p>React라면 value와 onChange 핸들러를 직접 조립했겠지만, Angular는 <code>[(ngModel)]</code> 하나로 끝납니다.</p>
+  <input [(ngModel)]="searchTerm" placeholder="과일 이름 검색" />
+
+  <ul class="fruit-list">
+    @for (fruit of filteredFruits; track fruit.id) {
+      <li class="fruit-card">
+        <span class="name">{{ fruit.name }}</span>
+      </li>
+    } @empty {
+      <li>검색 결과가 없습니다.</li>
+    }
+  </ul>
+</section>
