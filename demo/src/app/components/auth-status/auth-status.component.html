@@ -1,0 +1,5 @@
+@if (currentUser$ | async; as user) {
+  <p>{{ user.username }}님 로그인 중</p>
+} @else {
+  <p>로그인하지 않음</p>
+}

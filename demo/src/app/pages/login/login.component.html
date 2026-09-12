@@ -1,5 +1,12 @@
 <section class="practice">
-  <h2>study6 — 로그인 (가드 확인용, 임시)</h2>
-  <p>실제 폼/전역 상태 연동은 study8에서 다룹니다. 지금은 가드 동작만 확인합니다.</p>
-  <button (click)="onLogin()">로그인하고 마이페이지로 이동</button>
+  <h2>study8 — 로그인 (AuthService 전역 상태 연동)</h2>
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="actions" style="flex-direction: column; align-items: flex-start;">
+    <div>
+      <input formControlName="username" placeholder="아이디 (2자 이상)" />
+      @if (username.invalid && username.touched) {
+        <p class="error-text">아이디는 2자 이상 입력해야 합니다.</p>
+      }
+    </div>
+    <button type="submit">로그인</button>
+  </form>
 </section>
