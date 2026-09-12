@@ -1,0 +1,21 @@
+<section class="practice">
+  <h2>study3 — 라이프사이클(ngOnInit/ngOnDestroy) + ViewChild + DI</h2>
+  <p>
+    <code>FruitInventoryService</code>를 주입받아 2초마다 재고를 무작위로 1개씩 늘립니다.
+    (지금까지 <strong>{{ tickCount }}</strong>번 갱신됨 · 이 섹션을 접으면 <code>ngOnDestroy</code>가 타이머를 정리합니다)
+  </p>
+
+  <div class="actions">
+    <input #filterInput placeholder="이 입력창은 버튼으로 포커스됩니다" />
+    <button (click)="focusFilterInput()">ViewChild로 입력창 포커스</button>
+  </div>
+
+  <ul class="fruit-list">
+    @for (fruit of fruits; track fruit.id) {
+      <li class="fruit-card">
+        <span class="name">{{ fruit.name }}</span>
+        <span>{{ fruit.stock }}개</span>
+      </li>
+    }
+  </ul>
+</section>

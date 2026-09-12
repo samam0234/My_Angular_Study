@@ -2,3 +2,12 @@
 <app-counter-practice />
 <app-fruit-inventory-practice />
 <app-fruit-search-practice />
+
+<div class="actions">
+  <button (click)="showStockMonitor = !showStockMonitor">
+    {{ showStockMonitor ? '재고 모니터 언마운트 (ngOnDestroy 확인)' : '재고 모니터 다시 마운트' }}
+  </button>
+</div>
+@if (showStockMonitor) {
+  <app-fruit-stock-monitor />
+}
