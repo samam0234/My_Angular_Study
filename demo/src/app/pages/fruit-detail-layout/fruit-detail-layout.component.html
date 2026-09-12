@@ -1,0 +1,18 @@
+<section class="practice">
+  <h2>study6 — Router 중첩 라우팅</h2>
+  @if (fruit) {
+    <p class="name">{{ fruit.name }} — 재고 {{ fruit.stock }}개</p>
+  } @else {
+    <p>id={{ fruitId }}인 과일을 찾을 수 없습니다.</p>
+  }
+
+  <nav class="actions">
+    <a [routerLink]="['/fruits', fruitId]" routerLinkActive="active-link" [routerLinkActiveOptions]="{ exact: true }">개요</a>
+    <a [routerLink]="['/fruits', fruitId, 'reviews']" routerLinkActive="active-link">리뷰</a>
+  </nav>
+
+  <!-- 중첩 라우터 아울렛: 자식 라우트(개요/리뷰)가 이 자리에 그려짐 -->
+  <router-outlet />
+
+  <a routerLink="/fruits">← 목록으로</a>
+</section>
