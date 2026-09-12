@@ -1,0 +1,38 @@
+<section class="practice">
+  @if (viewModel$ | async; as vm) {
+    @if (loading) {
+      <p>불러오는 중...</p>
+    } @else if (errorMessage) {
+      <p class="error-text">{{ errorMessage }}</p>
+    } @else if (!vm) {
+      <p>게시글을 찾을 수 없습니다.</p>
+    } @else {
+      <div class="actions">
+        <h2>{{ vm.post.title }}</h2>
+        <button [class.active]="vm.isFavorite" (click)="onToggleFavorite()">
+          {{ vm.isFavorite ? '★ 즐겨찾기 취소' : '☆ 즐겨찾기' }}
+        </button>
+      </div>
+      <p>{{ vm.post.body }}</p>
+
+      <h3>댓글 {{ vm.comments.length }}개</h3>
+      <ul class="fruit-list">
+        @for (comment of vm.comments; track comment.id) {
+          <li class="fruit-card">
+            <div>
+              <b>{{ comment.name }}</b> ({{ comment.email }})
+              <p>{{ comment.body }}</p>
+            </div>
+          </li>
+        }
+      </ul>
+
+      <div class="actions">
+        <a routerLink="/">← 목록으로 (Link)</a>
+        <button (click)="goBack()">← 뒤로가기</button>
+      </div>
+    }
+  } @else {
+    <p>불러오는 중...</p>
+  }
+</section>

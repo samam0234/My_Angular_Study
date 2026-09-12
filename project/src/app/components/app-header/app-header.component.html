@@ -1,0 +1,15 @@
+<header class="app-header">
+  <h1>미니 게시판</h1>
+  <nav class="actions">
+    <a routerLink="/" routerLinkActive="active-link" [routerLinkActiveOptions]="{ exact: true }">목록</a>
+    <a routerLink="/mypage" routerLinkActive="active-link">마이페이지</a>
+  </nav>
+  <div class="auth-status">
+    @if (currentUser$ | async; as user) {
+      <span>👤 {{ user.name }}님</span>
+      <button (click)="onLogout()">로그아웃</button>
+    } @else {
+      <a routerLink="/login">로그인</a>
+    }
+  </div>
+</header>

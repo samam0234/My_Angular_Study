@@ -1,0 +1,6 @@
+<a class="fruit-card post-card" [routerLink]="['/posts', post.id]">
+  <span class="name">{{ post.title }}</span>
+  <button [class.active]="isFavorite" (click)="onFavoriteClick($event)">
+    {{ isFavorite ? '★' : '☆' }}
+  </button>
+</a>

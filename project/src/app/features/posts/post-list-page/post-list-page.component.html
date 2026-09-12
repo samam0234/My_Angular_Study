@@ -1,0 +1,36 @@
+<section class="practice">
+  <div class="actions">
+    <input [formControl]="keywordControl" placeholder="제목 검색" />
+    <button [class.active]="showFavoritesOnly" (click)="toggleFavoritesOnly()">
+      {{ showFavoritesOnly ? '전체 보기' : '즐겨찾기만 보기' }}
+    </button>
+  </div>
+
+  @if (viewModel$ | async; as vm) {
+    @if (loading) {
+      <p>불러오는 중...</p>
+    } @else if (errorMessage) {
+      <p class="error-text">{{ errorMessage }}</p>
+    } @else if (vm.items.length === 0) {
+      <p>조건에 맞는 게시글이 없습니다.</p>
+    } @else {
+      <ul class="fruit-list">
+        @for (post of vm.items; track post.id) {
+          <li>
+            <app-post-card
+              [post]="post"
+              [isFavorite]="post.isFavorite"
+              (toggleFavorite)="onToggleFavorite($event)"
+            />
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="actions" style="margin-top: 12px;">
+      <button [disabled]="currentPage === 1" (click)="prevPage()">← 이전</button>
+      <span>{{ currentPage }} 페이지</span>
+      <button [disabled]="vm.rawCount < 10" (click)="nextPage()">다음 →</button>
+    </div>
+  }
+</section>
