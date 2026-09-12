@@ -6,6 +6,8 @@ import { FruitOverviewComponent } from './pages/fruit-detail-layout/overview/fru
 import { FruitReviewsComponent } from './pages/fruit-detail-layout/reviews/fruit-reviews.component';
 import { LoginPageComponent } from './pages/login/login.component';
 import { MyPageComponent } from './pages/my-page/my-page.component';
+import { PostListPageComponent } from './pages/post-list/post-list.component';
+import { PostDetailPageComponent } from './pages/post-detail/post-detail.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -21,4 +23,6 @@ export const routes: Routes = [
   },
   { path: 'login', component: LoginPageComponent },
   { path: 'mypage', component: MyPageComponent, canActivate: [authGuard] },
+  { path: 'posts', component: PostListPageComponent },
+  { path: 'posts/:id', component: PostDetailPageComponent },
 ];
