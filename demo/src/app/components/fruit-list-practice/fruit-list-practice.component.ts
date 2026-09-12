@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { FRUIT_CATALOG } from '../../data/fruit-catalog';
-import { FruitCardComponent } from '../fruit-card/fruit-card.component';
+import { FruitCardComponent } from '../../shared/fruit-card/fruit-card.component';
 
 @Component({
   selector: 'app-fruit-list-practice',

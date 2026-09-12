@@ -8,7 +8,7 @@ import { LoginPageComponent } from './pages/login/login.component';
 import { MyPageComponent } from './pages/my-page/my-page.component';
 import { PostListPageComponent } from './pages/post-list/post-list.component';
 import { PostDetailPageComponent } from './pages/post-detail/post-detail.component';
-import { authGuard } from './guards/auth.guard';
+import { authGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },

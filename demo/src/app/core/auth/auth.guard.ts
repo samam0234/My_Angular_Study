@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService } from '../services/auth.service';
+import { AuthService } from './auth.service';
 
 // React의 <ProtectedRoute> 컴포넌트에 대응하는, "함수형 가드"
 export const authGuard: CanActivateFn = () => {

@@ -5,10 +5,11 @@ export interface AuthUser {
   username: string;
 }
 
+// 실제 서버가 없으므로 JWT 형태만 흉내낸 문자열을 사용합니다. (진짜 서명/검증은 하지 않음)
+export const JWT_STORAGE_KEY = 'demo_jwt';
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  // BehaviorSubject: "현재 값"을 항상 기억하고 있다가, 새로 구독하는 쪽에게 즉시 그 값을 알려주는 Subject.
-  // Context API/Zustand 스토어처럼, 앱 어디서든 이 서비스를 주입받으면 같은 로그인 상태를 공유한다.
   private currentUserSubject = new BehaviorSubject<AuthUser | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
 
@@ -18,9 +19,11 @@ export class AuthService {
 
   login(username: string) {
     this.currentUserSubject.next({ username });
+    localStorage.setItem(JWT_STORAGE_KEY, btoa(`fake-jwt.${username}.${Date.now()}`));
   }
 
   logout() {
     this.currentUserSubject.next(null);
+    localStorage.removeItem(JWT_STORAGE_KEY);
   }
 }
