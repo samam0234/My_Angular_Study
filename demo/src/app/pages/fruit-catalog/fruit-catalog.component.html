@@ -1,0 +1,11 @@
+<section class="practice">
+  <h2>study5 — Router 기본 라우팅 (목록)</h2>
+  <ul class="fruit-list">
+    @for (fruit of fruits; track fruit.id) {
+      <li class="fruit-card">
+        <span class="name">{{ fruit.name }}</span>
+        <a [routerLink]="['/fruits', fruit.id]">상세보기</a>
+      </li>
+    }
+  </ul>
+</section>
