@@ -1,0 +1,6 @@
+<li class="fruit-card">
+  <span class="name" [class.soldout]="fruit.stock === 0">
+    {{ fruit.name }} ({{ fruit.stock }}개)
+  </span>
+  <app-fruit-badge [soldOut]="fruit.stock === 0" />
+</li>

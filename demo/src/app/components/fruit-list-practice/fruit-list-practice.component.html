@@ -1,0 +1,11 @@
+<section class="practice">
+  <h2>study1 — 컴포넌트 / 템플릿 / 스타일 / &#64;for</h2>
+  <p>부모(<code>FruitListPracticeComponent</code>)가 자식(<code>FruitCardComponent</code>, <code>FruitBadgeComponent</code>)에게 <code>&#64;Input</code>으로 데이터를 내려줍니다.</p>
+  <ul class="fruit-list">
+    @for (fruit of fruits; track fruit.id) {
+      <app-fruit-card [fruit]="fruit" />
+    } @empty {
+      <li>등록된 과일이 없습니다.</li>
+    }
+  </ul>
+</section>
