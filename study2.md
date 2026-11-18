@@ -1,93 +1,141 @@
-# study2 — 이벤트 바인딩, 양방향 바인딩, 리스트 상태 추가/삭제
+# study2 — 핵심 구조
 
-## 1. 이벤트 바인딩 — `CounterPractice`
+> 🎯 **목표**: standalone 컴포넌트, 입력/출력, `@Injectable` 서비스를 만들어 화면과 데이터 책임을 나눈다.
 
-```typescript
-export class CounterPracticeComponent {
-  count = 0;
-  increment() { this.count++; }
-  decrement() { this.count--; }
-  reset() { this.count = 0; }
-}
-```
+- 위치: 기초 구간 (study0~10)
+- 대응 코드: [`demo/src/app/services/fruit-inventory.service.ts`](./demo/src/app/services/fruit-inventory.service.ts), [`demo/src/app/components/fruit-stock-monitor`](./demo/src/app/components/fruit-stock-monitor), [`demo/src/app/components/login-form-practice`](./demo/src/app/components/login-form-practice)
+- 이 문서는 Angular만 다룬다.
 
-```html
-<button (click)="decrement()">-1</button>
-<button (click)="increment()">+1</button>
-```
+---
 
-`(click)="increment()"`는 React의 `onClick={increment}`에 대응합니다(study0 2.2절). 차이는 값 갱신 방식입니다.
+## 📖 이론
 
-- React: `setCount(count + 1)` — **반드시 setter 함수를 호출**해야 리렌더링됩니다.
-- Angular: `this.count++` — **클래스 필드를 직접 대입**해도 됩니다. Zone.js가 `(click)` 이벤트 자체를 감지해서 변경 감지 사이클을 돌리기 때문입니다(study0 1절).
+Angular 앱의 기본 단위는 컴포넌트와 서비스다.
 
-## 2. 배열 상태 추가/삭제 — `FruitInventoryPractice`
+- 컴포넌트는 화면이다. `@Component`가 선택자, 템플릿, 스타일, 이 템플릿이 쓸 다른 구성 요소를 선언한다.
+- 서비스는 화면이 아닌 로직이다. 목록 보관, 로그인 상태, HTTP 호출이 여기 있다.
+- `@Injectable({ providedIn: 'root' })`는 그 서비스의 인스턴스를 앱 전체에서 하나(싱글턴)로 만든다. 컴포넌트마다 `new` 하지 않는다.
+- 의존성 주입은 생성자나 `inject()`로 그 싱글턴을 받아 오는 방식이다. 호출하는 쪽이 대상을 만들지 않으므로, 테스트에서 가짜 서비스를 넣기 쉽다.
+- 예전 앱은 `NgModule`의 `declarations`와 `providers`에 구성 요소를 등록했다. 이 저장소는 standalone이라 모듈 파일을 두지 않고, 컴포넌트 `imports`와 `providedIn: 'root'`로 같은 역할을 한다.
 
-```typescript
-addFruit() {
-  const name = this.newFruitName.trim();
-  if (!name) return;
-  this.fruits = [...this.fruits, { id: this.nextId++, name, stock: 1 }];
-  this.newFruitName = '';
-}
+부모와 자식의 데이터 방향은 두 가지다.
 
-removeFruit(id: number) {
-  this.fruits = this.fruits.filter((fruit) => fruit.id !== id);
-}
-```
+- `@Input()` : 부모가 자식에게 값을 내린다.
+- `@Output()` + `EventEmitter` : 자식이 부모에게 일이 생겼다고 알린다. 자식이 부모 필드를 직접 고치지 않는다.
 
-React와 동일하게 `[...prev, item]` / `filter()`로 **새 배열을 만들어 대입**하는 불변성 습관을 그대로 유지했습니다. Angular는 `this.fruits.push(item)`처럼 원본을 직접 변경해도 (Zone.js가 이벤트 이후 변경 감지를 돌리므로) 화면에는 반영되지만, 이 습관을 들이면 나중에 `OnPush` 변경 감지 전략(참조가 바뀌어야만 갱신하는 성능 최적화 모드)을 쓸 때 버그가 됩니다. **처음부터 새 배열/새 객체를 만드는 습관**을 권장합니다.
+라이프사이클 중 지금 필요한 두 훅만 기억한다.
 
-```html
-<input
-  [(ngModel)]="newFruitName"
-  (keyup.enter)="addFruit()"
-  placeholder="추가할 과일 이름"
-/>
-<button (click)="addFruit()">추가</button>
-```
+- `ngOnInit` : 입력이 준비된 뒤 한 번. 타이머나 첫 로드를 시작한다.
+- `ngOnDestroy` : 컴포넌트가 화면에서 제거되기 직전. 여기서 타이머를 끄지 않으면 사라진 화면이 계속 일한다.
 
-- `(keyup.enter)`: Angular 이벤트 바인딩은 `(keyup.enter)`, `(keydown.escape)`처럼 **키 이름을 이벤트명에 직접 붙여** 필터링할 수 있습니다. React라면 핸들러 안에서 `if (e.key === 'Enter')`를 직접 체크해야 했던 부분입니다.
+`@ViewChild`는 템플릿 안의 특정 요소를 클래스에서 가리킨다. 모니터의 "필터 입력에 포커스"가 그 예다.
 
-## 3. 양방향 바인딩 — `FruitSearchPractice`
+---
 
-`FormsModule`을 컴포넌트 `imports`에 추가하면 `[(ngModel)]` 문법을 쓸 수 있습니다.
+## 🛠️ 실기
 
-```typescript
-@Component({
-  selector: 'app-fruit-search-practice',
-  imports: [FormsModule],
-  templateUrl: './fruit-search-practice.component.html',
-})
-export class FruitSearchPracticeComponent {
-  searchTerm = '';
+### 1. 서비스
 
-  get filteredFruits() {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) return this.allFruits;
-    return this.allFruits.filter((fruit) => fruit.name.toLowerCase().includes(term));
+`demo/src/app/services/fruit-inventory.service.ts`
+
+```ts
+@Injectable({ providedIn: 'root' })
+export class FruitInventoryService {
+  private fruits: Fruit[] = FRUIT_CATALOG.map((fruit) => ({ ...fruit }));
+
+  getFruits(): Fruit[] {
+    return this.fruits;
+  }
+
+  bumpRandomStock() {
+    const index = Math.floor(Math.random() * this.fruits.length);
+    this.fruits[index] = {
+      ...this.fruits[index],
+      stock: this.fruits[index].stock + 1,
+    };
   }
 }
 ```
 
-```html
-<input [(ngModel)]="searchTerm" placeholder="과일 이름 검색" />
+1. `providedIn: 'root'`라서 루트 주입기가 이 클래스의 인스턴스를 공유한다. 하위 컴포넌트 providers에서 다시 제공하면 별도 인스턴스가 생길 수 있다.
+2. 카탈로그를 복사해 둔다. 원본 상수를 직접 고치지 않기 위해서다.
+3. 화면은 이 배열을 읽어 그린다.
+4. 임의 과일의 재고를 1 올린다.
+5. 요소를 교체할 때 새 객체를 만들어 넣는다. 같은 객체의 필드만 조용히 고치는 것보다 이후 변경 감지가 읽기 쉽다.
+
+### 2. 컴포넌트가 서비스를 받는다
+
+`demo/src/app/components/fruit-stock-monitor/fruit-stock-monitor.component.ts`
+
+```ts
+export class FruitStockMonitorComponent implements OnInit, OnDestroy {
+  @ViewChild('filterInput') filterInput?: ElementRef<HTMLInputElement>;
+
+  constructor(private inventoryService: FruitInventoryService) {}
+
+  ngOnInit() {
+    this.intervalId = setInterval(() => {
+      this.inventoryService.bumpRandomStock();
+      this.tickCount++;
+    }, 2000);
+  }
+
+  ngOnDestroy() {
+    clearInterval(this.intervalId);
+  }
+}
 ```
 
-`[(ngModel)]="searchTerm"`은 아래 두 바인딩을 한 번에 처리하는 문법 설탕(syntactic sugar)입니다.
+1. `OnInit`, `OnDestroy`를 구현한다고 타입에 적는다.
+2. `#filterInput` 요소를 나중에 포커스하려고 잡아 둔다. 뷰가 생기기 전에는 `undefined`일 수 있다.
+3. 생성자 매개변수에 서비스 타입을 적으면 Angular가 싱글턴을 넣어 준다.
+4. 화면에 붙은 뒤 2초마다 재고를 올리고 횟수를 센다.
+5. 홈의 버튼이 `@if`로 이 컴포넌트를 제거하면 `ngOnDestroy`가 타이머를 끈다.
 
-```html
-<!-- [(ngModel)]="searchTerm" 의 실제 정체 -->
-<input [ngModel]="searchTerm" (ngModelChange)="searchTerm = $event" />
+같은 서비스를 `inject(FruitInventoryService)`로 받아도 된다. `project`의 페이지들은 생성자 대신 `inject()`를 쓴다. 둘 다 주입이다.
+
+### 3. 출력으로 부모에게 알리기
+
+`LoginFormPracticeComponent`는 로그인 값을 자기가 저장하지 않고 부모에게 넘긴다.
+
+```ts
+@Output() loginAttempt = new EventEmitter<{ username: string }>();
+
+onSubmit() {
+  if (this.form.invalid) {
+    this.form.markAllAsTouched();
+    return;
+  }
+  this.loginAttempt.emit({ username: this.form.getRawValue().username });
+}
 ```
 
-- `[ngModel]="searchTerm"`: 프로퍼티 바인딩(값을 입력창에 반영)
-- `(ngModelChange)="searchTerm = $event"`: 이벤트 바인딩(입력이 바뀌면 필드에 반영)
+부모 템플릿은 `(loginAttempt)="onLoginAttempt($event)"`로 받는다. `$event`가 `emit`에 넣은 객체다.
 
-이 "배열/이벤트 이름을 대괄호+소괄호로 감싸면 양방향"이라는 문법(banana-in-a-box라고 부릅니다)은 React에는 없는 Angular 전용 문법이며, Vue의 `v-model`과 동일한 발상입니다.
+---
 
-또한 `filteredFruits`를 **getter**로 정의해서, `searchTerm`이 바뀔 때마다 다시 계산되도록 했습니다. React의 파생 상태(`useMemo` 없이 렌더링 중 그냥 계산하는 방식)와 같은 접근입니다.
+## ⚠️ 오류 노트
 
-## 4. `@for` + `track`이 리스트 삭제에서 하는 역할
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `NullInjectorError: No provider for FruitInventoryService` | `@Injectable`이 빠졌거나 `providedIn`이 없음 | `@Injectable({ providedIn: 'root' })` |
+| 화면을 닫아도 콘솔이 2초마다 돈다 | `clearInterval`을 안 함 | `ngOnDestroy`에서 해제 |
+| `filterInput`이 항상 `undefined` | `@ViewChild`를 `ngOnInit`에서 읽음 | 뷰가 만들어진 뒤인 `ngAfterViewInit`에서 쓴다 |
+| 자식이 `emit`해도 부모가 모름 | 템플릿에 `(loginAttempt)`가 없음 | 출력 이름과 괄호 바인딩을 맞춘다 |
+| 서비스 배열을 고쳤는데 일부 화면만 옛 값 | 컴포넌트가 배열을 한 번 복사해 자기 필드로 둠 | 화면은 서비스 메서드로 최신 값을 읽는다 |
 
-`FruitInventoryPractice`에서 항목을 삭제하면 배열이 재생성되지만, `track fruit.id` 덕분에 Angular는 "삭제된 항목의 DOM만 제거"하고 나머지 `<li>`는 재사용합니다. `track`을 생략(또는 `track $index`로 잘못 지정)하면 배열이 바뀔 때마다 전체 DOM을 다시 그리게 되어 성능 저하와 함께, 입력 중이던 값(포커스 등)이 날아가는 버그로 이어질 수 있습니다. React의 `key` 오용 문제와 정확히 같은 함정입니다.
+---
+
+## ☐ 체크리스트
+
+- ☑ 컴포넌트 / 템플릿 / 스타일 / 모듈
+- ☑ 디펜던시 주입
+- ☑ `providedIn: 'root'`가 싱글턴이라는 점을 예시로 말할 수 있다
+- ☑ `@Input`과 `@Output`의 방향을 코드에서 가리킬 수 있다
+- ☑ `ngOnInit`에서 시작한 타이머를 `ngOnDestroy`에서 끈다
+- ☑ 컴포넌트와 서비스의 책임이 나뉘어 있다
+- ☑ 이 저장소는 `NgModule` 대신 standalone `imports`를 쓴다
+
+## ➡️ 다음 단계 연결
+
+[study3](./study3.md)에서 컴포넌트 필드, 모델, `BehaviorSubject`로 상태를 다루는 방식을 비교한다.
