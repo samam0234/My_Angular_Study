@@ -1,119 +1,99 @@
-# study10 (고급5) — HTTP 인터셉터로 JWT 자동 첨부, 기업형 폴더 구조, CORS
+# study10 — 배포·정리
 
-## 1. HTTP 인터셉터 — 모든 요청을 가로채기
+> 🎯 **목표**: 운영 빌드를 만들고 용량 예산을 확인한 뒤, study0~9에서 만든 게시판 조각을 한 장으로 복습한다.
 
-로그인 후 발급받은 토큰을 API 요청마다 일일이 헤더에 넣어주는 대신, **모든 HTTP 요청을 가로채(intercept) 자동으로 처리**하는 것이 인터셉터입니다.
+- 위치: 기초 구간 (study0~10)
+- 대응 코드: [`project/angular.json`](./project/angular.json), [`project/package.json`](./project/package.json)
+- 이 문서는 Angular만 다룬다.
 
-```typescript
-// core/auth/jwt.interceptor.ts
-export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = localStorage.getItem(JWT_STORAGE_KEY);
-  if (!token) return next(req);
+---
 
-  const authorizedReq = req.clone({
-    setHeaders: { Authorization: `Bearer ${token}` },
-  });
-  return next(authorizedReq);
-};
+## 📖 이론
+
+`ng serve`는 개발용이다. 저장할 때마다 다시 묶고, 용량 최적화는 하지 않는다. 사용자에게 줄 파일은 `ng build`가 `dist/project/browser`에 만든다. 운영 설정은 파일을 해시한 이름으로 바꾸고, `environment.production.ts`로 갈아끼우며, 예산보다 크면 빌드를 실패시킨다.
+
+`angular.json`의 예산은 초기 묶음 경고 500kB, 오류 1MB, 컴포넌트 스타일 경고 4kB, 오류 8kB다. 예산을 넘는다는 것은 첫 화면이 무겁다는 신호다. 줄이는 방법은 study12에서 측정과 함께 본다.
+
+빌드 결과물은 정적 파일이다. 서버는 `index.html`과 js, css를 그대로 내려 주면 된다. 주소 `/posts/1`을 새로고침해도 `index.html`을 줘야 라우터가 그 화면을 연다. 그 설정은 study17의 nginx다. 외부 호스팅에 올린 주소는 아직 없다.
+
+---
+
+## 🛠️ 실기
+
+### 1. 빌드
+
+```bash
+cd project
+npx ng build --configuration=production
 ```
 
-- `HttpInterceptorFn`: Angular 15+ 함수형 인터셉터(study6의 함수형 가드와 같은 흐름). 이전 버전은 클래스로 `HttpInterceptor` 인터페이스를 구현해야 했습니다.
-- `req.clone({ setHeaders: {...} })`: `HttpRequest`는 **불변(immutable) 객체**라서 직접 `req.headers.set(...)`처럼 수정할 수 없습니다. 항상 `clone()`으로 값이 바뀐 새 요청 객체를 만들어야 합니다.
-- `next(req)`: 다음 인터셉터(또는 실제 네트워크 요청)로 넘기는 함수. React+axios의 `axios.interceptors.request.use(config => {...; return config})`와 목적이 완전히 같습니다.
+아래는 2026-11-18의 과거 측정이다. 현재 ASP.NET 연결·지연 로딩 적용 빌드는 초기 304.03 kB, 전송 추정 83.13 kB다.
 
-```typescript
-// app.config.ts
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes),
-    provideHttpClient(withInterceptors([jwtInterceptor])),   // 등록
-  ],
-};
-```
+2026-11-18에 목록 등록 폼을 넣기 직전 측정이다. 이후 등록·수정·삭제를 더하면 수 kB 커진다. Docker로 다시 빌드한 운영 묶음은 main 320.56 kB, 초기 합계 358.87 kB(전송 추정 95.83 kB)였다. 둘 다 경고선 500kB 아래다.
 
-`withInterceptors([...])`에 등록한 인터셉터는 `HttpClient`로 나가는 **모든 요청**(이 데모에서는 `PostService`의 모든 호출)에 자동 적용됩니다. `PostService` 코드는 인터셉터의 존재를 전혀 몰라도 됩니다 — 관심사 분리(study0 6절 DI의 장점과 같은 맥락)입니다.
+| 파일 | 원본 | 전송 추정 |
+|---|---|---|
+| main | 318.32 kB | 82.94 kB |
+| polyfills | 34.59 kB | 11.33 kB |
+| styles | 3.73 kB | 1.07 kB |
+| 초기 합계 | 356.64 kB | 95.34 kB |
 
-### JWT를 어디서 만드는가
+경고선 500kB보다 작다. 출력 위치는 `project/dist/project/browser`다.
 
-이 저장소는 아직 자체 백엔드가 없으므로, `AuthService.login()`에서 **흉내만 낸 토큰 문자열**을 `localStorage`에 저장합니다.
+### 2. 기초 구간이 게시판에서 만나는 곳
 
-```typescript
-// core/auth/auth.service.ts
-login(username: string) {
-  this.currentUserSubject.next({ username });
-  localStorage.setItem(JWT_STORAGE_KEY, btoa(`fake-jwt.${username}.${Date.now()}`));
-}
-```
-
-실제 서버 연동 시에는 로그인 API 응답에 들어있는 진짜 JWT를 여기 저장하면 됩니다 — 인터셉터/가드 코드는 수정할 필요가 없습니다.
-
-## 2. `environment` 설정
-
-```typescript
-// environments/environment.ts
-export const environment = {
-  production: false,
-  apiBaseUrl: 'https://jsonplaceholder.typicode.com',
-};
-```
-
-```typescript
-// services/post.service.ts
-import { environment } from '../../environments/environment';
-const BASE_URL = `${environment.apiBaseUrl}/posts`;
-```
-
-React/Vite 프로젝트의 `.env` + `import.meta.env.VITE_API_URL`에 대응하는 Angular 공식 방식입니다. 실제 기업형 프로젝트에서는 `ng generate environments` 명령으로 `environment.ts`(개발용)와 `environment.production.ts`(배포용)를 따로 만들고, `angular.json`의 `fileReplacements` 설정으로 `ng build --configuration production` 실행 시 자동으로 파일을 바꿔치기합니다. 이 저장소는 학습 목적상 파일 하나만 두고 값 구조만 보여줍니다.
-
-## 3. 기업형 폴더 구조 — `core` / `shared` / `pages`
-
-study0 9절에서 미리 본 구조를 실제로 적용했습니다.
-
-```
-src/app/
-├─ core/
-│  └─ auth/
-│     ├─ auth.service.ts       # 전역 로그인 상태 (study8)
-│     ├─ auth.guard.ts          # 보호된 라우트 (study6)
-│     └─ jwt.interceptor.ts     # 이번 문서
-├─ shared/
-│  ├─ fruit-card/               # 여러 곳에서 재사용하는 순수 UI
-│  └─ fruit-badge/
-├─ services/                    # 화면(페이지) 단위 데이터 fetch 로직
-│  ├─ post.service.ts
-│  ├─ favorites.service.ts
-│  └─ fruit-inventory.service.ts
-├─ pages/                       # 라우트 하나당 화면 하나
-├─ components/                  # study 실습 전용 컴포넌트 (홈 화면 누적용)
-├─ guards/, environments/, models/, data/
-├─ app.routes.ts
-└─ app.config.ts
-```
-
-| 폴더 | 기준 |
+| study | 게시판에서의 자리 |
 |---|---|
-| `core/` | 앱 전체에서 **하나만 존재**해야 하는 것 (인증, 인터셉터, 가드). 다른 feature가 이 폴더에 의존하는 건 괜찮지만, 반대로 `core/`가 특정 feature를 알아서는 안 됨 |
-| `shared/` | 여러 feature가 그대로 재사용하는 **순수 UI 컴포넌트** (자체 상태 없이 `@Input`/`@Output`만 가짐) |
-| `pages/` + `services/` | 라우트(화면) 단위 기능. React의 `pages/` + `hooks/`(또는 `api/`)에 대응 |
+| 0 | `npm start`, `bootstrapApplication`, `core/shared/features` |
+| 1 | 헤더의 `{{ }}`, 목록의 `@for`와 `@if` |
+| 2 | standalone 컴포넌트, `inject`, 카드의 입력과 출력 |
+| 3 | `Post` 모델, 로그인 signal, 즐겨찾기 `Set` |
+| 4 | `/`, `/posts/:id`, `/login`, `/mypage`, `/lab`, 가드 |
+| 5 | 로그인 폼과 글 등록 폼의 검증 문장 |
+| 6 | 목록·상세·등록·수정·삭제, `switchMap`, `forkJoin` |
+| 7 | 실제 JWT HttpOnly 쿠키, `/auth/me`, 401, `X-Request-Id` |
+| 8 | 환경 파일, 카드는 화면만 담당 |
+| 9 | Angular 테스트 15개. 실제 API 검사는 study15 |
 
-`studyFinal`의 `project/`는 이 구조를 **처음부터** 적용해서 새로 만듭니다(지금 `demo/`는 study1부터 누적돼 온 실습 잔재가 섞여 있어 완전히 이상적인 구조는 아닙니다 — 실무에서도 신규 프로젝트가 아니면 완벽한 구조 이전이 항상 쉬운 것은 아니라는 점 자체가 교훈입니다).
+`demo/`는 같은 개념을 과일 카탈로그와 카운터로 먼저 연습한 폴더다. `project/`는 그 개념으로 만든 미니 게시판이다.
 
-> **React와 비교할 포인트 ① 폴더 구조가 강제되는 정도 (study0 4절 복습, 최종 정리)**
-> React는 `ng generate`에 대응하는 공식 스캐폴딩 도구가 없어서 폴더 구조가 팀마다 다릅니다. Angular는 `ng generate component/service/guard`가 파일명 규칙을 강제하고, `core/shared/features` 관례도 공식 스타일 가이드에서 오랫동안 권장돼 온 것이라 프로젝트 간 구조 편차가 작습니다.
+### 3. 복습 문제
 
-## 4. CORS — Angular 관점에서 재정리
+답을 코드에서 가리키며 말한다. 정답 문장을 외우지 않는다.
 
-React study10에서 정리한 CORS 개념(Origin, preflight, `Access-Control-Allow-Origin`)은 Angular에서도 동일하게 적용됩니다. Angular 관점에서 추가로 알아둘 것:
+1. `main.ts`에서 앱을 시작하는 함수 이름과, 그 함수가 받는 두 인자는 무엇인가?
+2. `@for`의 필수 track이 없을 때 어떤 오류가 나는가? 인덱스 대신 id를 쓰는 이유는?
+3. `providedIn: 'root'`를 빼면 어떤 런타임 오류가 나는가?
+4. 로그인 사용자 스트림을 템플릿에서 구독하는 문자는 무엇인가?
+5. `/mypage`로 직접 들어갔을 때 가드가 만드는 쿼리 이름은 무엇인가?
+6. 이메일 형식이 틀린데 오류가 안 보이면 템플릿의 어떤 조건이 빠졌을 가능성이 큰가?
+7. 페이지를 연속으로 누를 때 이전 응답을 버리는 연산자는 무엇인가?
+8. 쿠키 전달과 변경 요청 헤더를 설정할 때 원본 req를 복제하는 메서드는 무엇인가?
+9. 운영 빌드가 개발 환경 파일 대신 읽는 파일 이름은 무엇인가?
+10. 테스트에서 실제 서버로 요청이 나가지 않게 응답을 넣어 주는 클래스 이름은 무엇인가?
 
-- **자격 증명(쿠키) 포함 요청**: axios의 `withCredentials: true`에 대응하는 옵션은 `HttpClient`의 요청 옵션 `{ withCredentials: true }`입니다. 쿠키 기반 인증(세션 쿠키)을 쓴다면 인터셉터가 아니라 이 옵션으로 처리합니다. 이 데모는 JWT를 헤더로 보내는 방식(Bearer 토큰)이라 쿠키 옵션은 쓰지 않았습니다.
-- **개발 중 프록시 우회**: Angular CLI는 `proxy.conf.json` 파일 하나로 `ng serve`가 백엔드로 요청을 대신 전달해주는 프록시를 지원합니다(Vite의 `server.proxy` 옵션과 동일한 목적). 예:
-  ```json
-  { "/api": { "target": "http://localhost:8080", "secure": false } }
-  ```
-  `ng serve --proxy-config proxy.conf.json`으로 실행하면, 프론트가 `/api/...`로 보낸 요청을 개발 서버가 백엔드로 중계해 CORS 문제 자체를 개발 중엔 우회할 수 있습니다.
-- **인터셉터와 CORS는 무관**: 인터셉터는 브라우저가 요청을 "보내기 전" 헤더를 조작하는 것이고, CORS는 브라우저가 응답을 받은 뒤 "이 응답을 JS에 노출해도 되는지" 서버 헤더를 보고 판단하는 것입니다. 인터셉터로 CORS 에러 자체를 해결할 수는 없고, 반드시 백엔드(또는 개발 중엔 프록시)에서 처리해야 합니다.
+---
 
-## 5. 다음 단계
+## ⚠️ 오류 노트
 
-여기까지가 `demo/` 프로젝트의 마지막 실습입니다. `studyFinal`에서는 지금까지 배운 모든 개념(컴포넌트, DI, Router+Guard, Reactive Forms, HttpClient+RxJS, 전역 상태, 인터셉터)을 조합해 React로 만들었던 게시판+로그인 미니 웹사이트를 `project/`에 Angular로 재구현합니다.
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `budget exceeded` | 초기 묶음이 1MB를 넘음 | 라우트 지연 로딩, 안 쓰는 패키지 제거. study12 |
+| 빌드는 되는데 새로고침 404 | 호스트가 SPA fallback을 안 함 | nginx `try_files`. study17 |
+| `dist`를 열었더니 모듈 오류 | `file://`로 html을 염 | 정적 서버로 연다. `npx ng serve`는 개발용이고, 결과를 보려면 서버가 필요하다 |
+| 운영에서 개발 API를 침 | `fileReplacements` 누락 | `angular.json`의 production 설정을 확인 |
+| 개발 서버 용량과 운영 용량을 비교 | 개발 묶음은 최적화 전 | 비교는 `ng build` 표로만 한다 |
+
+---
+
+## ☐ 체크리스트
+
+- ☑ `ng build`가 성공하고 초기 합계가 500kB 경고보다 작다
+- ☑ 출력 폴더가 `dist/project/browser`다
+- ☑ study0~9의 코드 위치를 위 표에서 열 수 있다
+- ☑ 복습 문제 10개의 답을 파일을 열고 가리킬 수 있다
+- ☐ 빌드 결과를 외부 URL에 올렸다. study17에서 이미지까지 만들고, 공개 주소는 아직 없다
+
+## ➡️ 다음 단계 연결
+
+[studyMidpoint](./studyMidpoint.md)에서 study0~10만으로 게시판과 로그인을 처음부터 다시 조립하는 순서를 적는다. 심화 상태와 배포 자동화는 그 다음이다.
