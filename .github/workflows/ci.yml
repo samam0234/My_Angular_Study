@@ -1,0 +1,43 @@
+name: angular-study
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: project
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: project/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test -- --watch=false --browsers=ChromeHeadless
+      - run: npm run build
+      - run: node ../board-mcp/server.mjs --self-test
+      - name: Create isolated local test secrets
+        run: |
+          node --input-type=module -e "import {randomBytes} from 'node:crypto'; import {writeFileSync} from 'node:fs'; writeFileSync('.env', 'SQL_PASSWORD=Aa1!' + randomBytes(24).toString('hex') + '\nJWT_SECRET=' + randomBytes(48).toString('hex') + '\nOPENAI_API_KEY=\n');"
+      - run: docker compose up -d --build
+      - run: node ../board-api-dotnet/tests/wait-for-api.mjs
+      - run: node --test ../board-api-dotnet/tests/api.test.mjs
+      - run: node ../board-api-dotnet/tests/persistence.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          CI: "true"
+          E2E_BASE_URL: http://127.0.0.1:8080
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail 100
+      - name: Stop test services
+        if: always()
+        run: docker compose down
