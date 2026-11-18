@@ -1,90 +1,153 @@
-# study4 — `@Output`(자식→부모 통신), Reactive Forms 실습
+# study4 — 라우팅·요청 처리
 
-## 1. `@Output` — React 콜백 props에 대응
+> 🎯 **목표**: URL을 컴포넌트에 연결하고, 주소 매개변수와 중첩 라우트, 가드가 요청 흐름 어디에 끼는지 본다.
 
-React는 "함수를 props로 내려주고 자식이 그걸 호출"하는 관례로 자식→부모 통신을 했습니다(study0 6절). Angular는 **`@Output` + `EventEmitter`**라는 전용 문법이 있습니다.
+- 위치: 기초 구간 (study0~10)
+- 대응 코드: [`demo/src/app/app.routes.ts`](./demo/src/app/app.routes.ts), [`project/src/app/app.routes.ts`](./project/src/app/app.routes.ts), [`project/src/app/core/auth/auth.guard.ts`](./project/src/app/core/auth/auth.guard.ts)
+- 이 문서는 Angular만 다룬다.
 
-```typescript
-// 자식: fruit-like-item.component.ts
-export class FruitLikeItemComponent {
-  @Input({ required: true }) fruit!: Fruit;
-  @Input() liked = false;
-  @Output() likeToggled = new EventEmitter<number>();
+---
 
-  onToggle() {
-    this.likeToggled.emit(this.fruit.id);   // "이벤트를 발생"시킴
+## 📖 이론
+
+Angular Router는 브라우저 주소와 컴포넌트를 짝짓는다. 서버에 HTML을 다시 요청하지 않고, `<router-outlet>` 자리를 해당 컴포넌트로 바꾼다.
+
+흐름은 이렇다.
+
+1. 사용자가 `/posts/3`으로 이동한다.
+2. `provideRouter(routes)`가 라우트 표를 갖고 있다.
+3. `path: 'posts/:id'`가 맞고, `PostDetailPageComponent`가 아웃렛에 생성된다.
+4. 컴포넌트는 `ActivatedRoute`에서 `id`를 읽어 HTTP로 그 글을 요청한다.
+5. 응답이 오면 템플릿이 제목과 댓글을 그린다.
+
+`canActivate` 가드는 컴포넌트를 만들기 전에 통과 여부를 본다. 실패하면 `UrlTree`를 반환해 다른 주소로 보낸다. `false`만 반환하면 이동이 취소되고 사용자는 원래 화면에 남는다. 로그인 화면으로 보내려면 `UrlTree`가 맞다.
+
+중첩 라우트는 부모 컴포넌트 안에 또 아웃렛이 있는 구조다. 과일 상세는 개요와 리뷰가 같은 레이아웃을 공유한다.
+
+`routerLink`는 클릭으로 그 주소를 연다. `routerLinkActive`는 현재 주소와 같을 때 클래스를 붙인다. 홈처럼 정확히 일치해야 하는 링크는 `{ exact: true }`가 필요하다. 안 그러면 `/posts/1`에서도 `/` 링크가 켜질 수 있다.
+
+---
+
+## 🛠️ 실기
+
+### 1. 연습 앱의 라우트 표
+
+`demo/src/app/app.routes.ts`의 일부다.
+
+```ts
+export const routes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'fruits', component: FruitCatalogPageComponent },
+  {
+    path: 'fruits/:id',
+    component: FruitDetailLayoutComponent,
+    children: [
+      { path: '', component: FruitOverviewComponent },
+      { path: 'reviews', component: FruitReviewsComponent },
+    ],
+  },
+  { path: 'mypage', component: MyPageComponent, canActivate: [authGuard] },
+  { path: 'posts/:id', component: PostDetailPageComponent },
+];
+```
+
+1. 빈 경로는 홈이다.
+2. `/fruits`는 카탈로그다.
+3. `/fruits/2`의 `2`는 `:id`다. 부모는 레이아웃만 그린다.
+4. 자식의 빈 경로는 `/fruits/2` 본문(개요)이다.
+5. `/fruits/2/reviews`는 같은 레이아웃의 리뷰 아웃렛이다.
+6. `/mypage`는 가드를 통과해야 컴포넌트가 생긴다.
+7. `/posts/10`은 상세 컴포넌트다. `:id`라는 이름만 같고 과일 id와는 별개의 라우트다.
+
+`app.config.ts`의 `provideRouter(routes)`가 이 표를 앱에 등록한다.
+
+### 2. 게시판 라우트
+
+`project/src/app/app.routes.ts`
+
+```ts
+export const routes:Routes = [
+  { path: '', component: PostListPageComponent },
+  {
+    path: 'posts/:id',
+    loadComponent: () =>
+      import('./features/posts/post-detail-page/post-detail-page.component').then(
+        (module) => module.PostDetailPageComponent,
+      ),
+  },
+  { path: 'login', component: LoginPageComponent },
+  { path: 'mypage', component: MyPageComponent, canActivate: [authGuard] },
+  {
+    path: 'admin',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/auth/admin-page/admin-page.component').then((module) => module.AdminPageComponent),
+  },
+  {
+    path: 'lab',
+    loadComponent: () => import('./features/lab/lab-page.component').then((module) => module.LabPageComponent),
+  },
+];
+```
+
+1. `/`는 목록이고 상세는 주소에 id를 받는다.
+2. 로그인 화면은 공개다.
+3. `/mypage`는 authGuard, `/admin`은 authGuard와 adminGuard를 거친다.
+4. 상세·관리자·실습실은 loadComponent로 지연 로딩한다.
+5. 관리자 컴포넌트는 서버 `/api/admin/status`도 호출한다. 가드만으로 API 권한을 대신하지 않는다.
+
+### 3. 가드와 returnUrl
+
+`project/src/app/core/auth/auth.guard.ts`
+
+```ts
+export const authGuard: CanActivateFn = (_route, state) => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  if (authService.isLoggedIn) {
+    return true;
   }
-}
+
+  return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
+};
 ```
 
-```typescript
-// 부모: likeable-fruit-list.component.ts
-onLikeToggled(id: number) {
-  const next = new Set(this.likedIds);
-  next.has(id) ? next.delete(id) : next.add(id);
-  this.likedIds = next;
-}
-```
+1. 함수형 가드다. 클래스의 `canActivate` 메서드와 같은 자리다.
+2. `_route`는 이번엔 안 쓴다. `state.url`이 사용자가 가려던 주소다.
+3. 가드 함수 안에서도 `inject`로 서비스와 라우터를 받는다.
+4. 로그인되어 있으면 라우트를 허용한다.
+5. 아니면 컴포넌트를 만들지 않는다.
+6. `/login?returnUrl=/mypage` 형태의 주소 트리를 반환한다.
 
-```html
-<!-- 부모 템플릿 -->
-<app-fruit-like-item
-  [fruit]="fruit"
-  [liked]="isLiked(fruit.id)"
-  (likeToggled)="onLikeToggled($event)"
-/>
-```
+로그인 성공 뒤의 복귀는 study7에서 `queryParamMap`으로 읽는다.
 
-| | React | Angular |
+상세 화면은 `Number(this.route.snapshot.paramMap.get('id'))`로 id를 한 번 읽는다. 같은 컴포넌트 인스턴스에서 id만 바뀌는 링크를 쓰면 `snapshot`은 옛 값에 남을 수 있다. 그때는 `paramMap`을 구독한다. 이 게시판의 상세는 목록으로 나갔다가 다시 들어오므로 인스턴스가 새로 생긴다.
+
+---
+
+## ⚠️ 오류 노트
+
+| 증상 | 원인 | 해결 |
 |---|---|---|
-| 자식→부모 전달 방법 | 부모가 콜백 함수를 props로 내려줌(`onLike={() => ...}`), 자식이 그냥 호출 | 자식이 `@Output` 프로퍼티(`EventEmitter`)를 선언, 부모가 `(이벤트이름)="핸들러()"`로 구독 |
-| 값 전달 | 콜백 함수의 인자로 직접 전달 | `emit(값)` 호출 → 부모 템플릿에서 `$event`로 그 값을 받음 |
-| 문법 성격 | 관례(convention). 이름은 자유(`onLike`, `handleLike` 등 아무거나) | 프레임워크가 정의한 전용 문법. `(이벤트이름)`은 `@Output()` 필드명과 반드시 일치해야 함 |
+| 주소는 바뀌는데 화면이 그대로 | 템플릿에 `<router-outlet>`이 없음 | 루트 또는 레이아웃에 아웃렛을 둔다 |
+| 새로고침하면 서버가 404 | 배포 서버가 `index.html`로 돌려주지 않음 | study17의 nginx `try_files` |
+| `/` 메뉴가 모든 페이지에서 켜짐 | `routerLinkActive`가 접두사로 일치 | 홈만 `{ exact: true }` |
+| 가드가 있어도 마이페이지가 열림 | `canActivate`를 라우트에 안 넣음 | `canActivate: [authGuard]` |
+| 상세 id가 `NaN` | `paramMap.get('id')`가 `null` | 라우트 경로의 `:id` 이름을 확인 |
+| 자식 라우트가 안 보임 | 부모 템플릿에 두 번째 아웃렛이 없음 | 레이아웃 컴포넌트에 `<router-outlet>` |
 
-`$event`는 Vue의 `$event`와 동일한 개념으로, "이 이벤트 핸들러에 전달된 값"을 가리키는 Angular 템플릿 전용 변수입니다.
+---
 
-## 2. Reactive Forms — `FormGroup` / `FormControl` / `Validators`
+## ☐ 체크리스트
 
-Vue의 `v-model` 여러 개를 `ref`로 관리하거나, React의 Controlled Component(`useState` + `onChange`)로 폼을 관리했던 것과 달리, Angular는 **폼 상태 전체를 하나의 객체(`FormGroup`)로 코드에서 직접 다루는** Reactive Forms 방식을 공식적으로 권장합니다.
+- ☑ 라우팅 + 가드
+- ☑ 목록, 상세, 로그인, 마이페이지, 실습실의 경로를 표로 말할 수 있다
+- ☑ `:id`를 `ActivatedRoute`에서 읽는 코드를 찾을 수 있다
+- ☑ 중첩 라우트에서 부모 레이아웃과 자식 아웃렛을 구분한다
+- ☑ 가드가 `true`와 `UrlTree` 중 무엇을 반환하는지 안다
+- ☑ `returnUrl`에 원래 주소가 실리는 이유를 설명할 수 있다
 
-```typescript
-private fb = new FormBuilder();
-form = this.fb.nonNullable.group({
-  username: ['', [Validators.required, Validators.minLength(2)]],
-  password: ['', [Validators.required, Validators.minLength(4)]],
-});
-```
+## ➡️ 다음 단계 연결
 
-```html
-<form [formGroup]="form" (ngSubmit)="onSubmit()">
-  <input formControlName="username" />
-  @if (username.invalid && username.touched) {
-    <p class="error-text">아이디는 2자 이상 입력해야 합니다.</p>
-  }
-  <button type="submit">로그인 시도</button>
-</form>
-```
-
-- `[formGroup]="form"`: `<form>` 엘리먼트를 `FormGroup` 객체와 연결
-- `formControlName="username"`: `<input>`을 그룹 안의 특정 `FormControl`과 연결 (이름은 `group({...})`의 키와 일치)
-- `Validators.required`, `Validators.minLength(2)`: 검증 규칙을 **선언적으로** 등록. React라면 `if (username.length < 2) setError(...)`처럼 매번 직접 검증 로직을 짜야 했던 부분입니다.
-- `.invalid`, `.touched`: 각 컨트롤이 자체적으로 들고 있는 상태. "유효하지 않음" + "한 번이라도 포커스가 갔다 나감"을 조합해서 에러 메시지 노출 시점을 제어하는 흔한 패턴입니다.
-
-### Template-driven Forms와의 비교 (참고)
-
-Angular는 `[(ngModel)]`(study2) 기반의 **Template-driven Forms**도 지원합니다. 간단한 폼은 이 방식이 코드가 짧지만, 검증 로직이 복잡해지거나 폼을 동적으로 구성해야 할 때는 **Reactive Forms**가 테스트하기 쉽고 타입 안정성이 높아 실무에서 더 널리 쓰입니다. 이 커리큘럼은 Reactive Forms로 통일합니다.
-
-## 3. 폼 제출과 `@Output`을 조합하기
-
-```typescript
-onSubmit() {
-  if (this.form.invalid) {
-    this.form.markAllAsTouched();   // 제출을 눌러야 모든 에러 메시지를 보여줌
-    return;
-  }
-  this.loginAttempt.emit({ username: this.form.getRawValue().username });
-  this.form.reset();
-}
-```
-
-`markAllAsTouched()`는 사용자가 아직 어떤 입력창도 건드리지 않았는데 제출 버튼을 눌렀을 때, 모든 필드의 에러 메시지를 한 번에 보여주기 위한 관례적인 처리입니다. 폼 제출이 성공하면 1절에서 배운 `@Output`으로 결과를 부모(Home)에 알립니다 — 아직 전역 로그인 상태는 아니고(그건 study8), "자식이 부모에게 이벤트를 알린다"는 개념 연습입니다.
+[study5](./study5.md)에서 로그인 폼의 입력, 검증, 오류 문장을 만든다. 가드를 통과한 뒤의 로그인 처리 자체는 study7이다.
