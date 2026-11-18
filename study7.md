@@ -1,105 +1,96 @@
-# study7 (고급2) — HttpClient + RxJS(map/switchMap/catchError), 로딩/에러/빈 상태
+# study7 — 인증·보안 기초
 
-## 1. `HttpClient` 등록
+> 🎯 **목표**: 실제 비밀번호 검증과 서명 JWT 쿠키로 로그인하고, 새로고침 복원·401·작성자 권한을 구분한다.
 
-```typescript
-// app.config.ts
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes),
-    provideHttpClient(),   // 추가
-  ],
-};
-```
+- 대응 코드: [AuthService](./project/src/app/core/auth/auth.service.ts), [인터셉터](./project/src/app/core/auth/jwt.interceptor.ts), [API](./board-api-dotnet/Program.cs)
 
-React에서 axios를 쓰려면 `npm install axios` 후 별도 인스턴스를 만들었지만, Angular는 `@angular/common/http`가 이미 내장돼 있고 `provideHttpClient()` 한 줄로 앱 전체에서 `HttpClient`를 주입받을 수 있게 됩니다(study0 0절).
+## 📖 이론
 
-## 2. 서비스에서 `Observable` 반환 — `map`
+인증은 누구인지 확인하고, 인가는 그 사람이 이 동작을 할 수 있는지 확인한다. ASP.NET Core는 SQL Server의 비밀번호 해시를 `PasswordHasher`로 검사한다. 이메일 모양이나 비밀번호 길이가 맞는 것만으로 로그인되지 않는다.
 
-```typescript
-// services/post.service.ts
-@Injectable({ providedIn: 'root' })
-export class PostService {
-  private http = inject(HttpClient);
+서버는 HS256 JWT의 서명·발급자·대상·만료를 검증한다. 유효기간은 1시간이다. 로그인 응답은 공통 스펙의 `{ data: { user, accessToken } }`이며 동일 JWT를 `board_token` HttpOnly 쿠키에도 설정한다. Angular는 응답에서 사용자만 취해 signal에 두고 토큰을 저장하지 않는다. HttpOnly는 쿠키 읽기를 막는다. 로그인 JSON에도 토큰이 오므로 “브라우저에 토큰이 전혀 전달되지 않는다”는 뜻은 아니다.
 
-  getPosts(userId?: string): Observable<Post[]> {
-    const params = userId ? new HttpParams().set('userId', userId) : undefined;
-    return this.http.get<Post[]>(BASE_URL, { params }).pipe(
-      map((posts) => posts.slice(0, 10)),   // 응답을 그대로 쓰지 않고 가공
-    );
-  }
-}
-```
-
-- `this.http.get<Post[]>(...)`는 **Promise가 아니라 Observable**을 반환합니다(study0 7절). `.then()`이 아니라 `.pipe(연산자, 연산자, ...)`로 값을 가공합니다.
-- `map`은 배열의 `Array.prototype.map`과 이름은 같지만 **RxJS 연산자**입니다 — "Observable이 값을 방출할 때마다 그 값을 변환해서 다시 방출"한다는 뜻입니다.
-
-## 3. `switchMap` — 검색어가 바뀔 때마다 이전 요청은 취소
-
-```typescript
-// pages/post-list/post-list.component.ts
-this.userIdControl.valueChanges.pipe(
-  startWith(''),
-  debounceTime(300),
-  distinctUntilChanged(),
-  tap(() => { this.loading = true; this.errorMessage = ''; }),
-  switchMap((userId) =>
-    this.postService.getPosts(userId).pipe(
-      catchError(() => { this.errorMessage = '게시글을 불러오지 못했습니다.'; return of<Post[]>([]); }),
-    ),
-  ),
-).subscribe((posts) => { this.posts = posts; this.loading = false; });
-```
-
-`FormControl.valueChanges` 자체가 **Observable**입니다(input 값이 바뀔 때마다 새 값을 방출하는 스트림). 여기에 연산자를 체이닝합니다.
-
-| 연산자 | 역할 | React(Promise)로 하려면 |
+| 동작 | 경로 | 결과 |
 |---|---|---|
-| `startWith('')` | 구독 시작 즉시 빈 문자열 1회 방출(초기 로딩 트리거) | `useEffect(..., [])`로 마운트 시 1회 별도 처리 |
-| `debounceTime(300)` | 입력이 300ms 동안 멈춰야 다음 단계로 통과 | `setTimeout` + `clearTimeout`을 직접 관리 |
-| `distinctUntilChanged()` | 이전 값과 같으면 무시 | 이전 값을 별도 변수에 저장해 직접 비교 |
-| `tap(...)` | 값을 변경하지 않고 부수효과만 실행(로딩 상태 켜기) | 그냥 코드 중간에 `setLoading(true)` 호출 |
-| **`switchMap`** | 새 값이 들어오면 **이전 내부 Observable(진행 중이던 HTTP 요청)을 취소**하고 새 요청으로 전환 | 요청마다 취소 토큰(`AbortController`)을 직접 만들어 관리 |
-| `catchError` | 에러를 잡아서 대체 값(`of([])`)으로 스트림을 이어감 | `.catch()` 또는 `try/catch` |
+| 가입 | `POST /api/auth/signup` | 이메일·비밀번호·닉네임 검증, 201. 중복 이메일 409 |
+| 로그인 | `POST /api/auth/login` | 올바른 비밀번호일 때만 200과 쿠키 |
+| 복원 | `GET /api/auth/me` | 쿠키 또는 Bearer 검사 후 `{ data: user }` |
+| 로그아웃 | `POST /api/auth/logout` | 쿠키 삭제, 204 |
+| 관리자 검사 | `GET /api/admin/status` | 비로그인 401, 일반 사용자 403 |
 
-**`switchMap`이 이 커리큘럼에서 가장 중요한 연산자입니다.** "사용자가 검색창에 빠르게 여러 글자를 입력했을 때, 먼저 보낸 요청의 응답이 나중에 도착해서 화면이 엉뚱한 결과로 덮어써지는 버그"(race condition)를 연산자 하나로 막아줍니다. React+axios로 같은 걸 구현하려면 각 요청마다 "이 요청이 최신 요청인가"를 직접 추적하는 코드가 필요합니다.
+`provideAppInitializer`가 복원을 기다린 후 최초 라우팅한다. `authGuard`는 화면 이동을 안내할 뿐이다. 서버는 글 작성·수정·삭제와 관리자 API를 각각 다시 검사한다. 공개 회원가입에서 `role: 'admin'`을 보내도 일반 계정으로 저장된다.
 
-## 4. 로딩 / 에러 / 빈 상태 패턴
+쿠키 CSRF를 막기 위해 변경 요청에 `X-Board-Request: 1`을 요구한다. 본문이 있으면 JSON이어야 하고, Origin이 있으면 허용 출처와 일치해야 한다. 서버는 제한된 CORS만 허용한다. 사용자 정의 헤더를 보낼 수 없는 외부 HTML 폼은 거절된다. HTTP 로컬 compose만 `CookieSecure=false`이고 기본값은 true다.
 
-React study7에서 만들었던 "로딩 중.../에러 발생/데이터 없음" 패턴을 Angular의 `@if`/`@else if` 체인으로 그대로 재현합니다.
+## 🛠️ 실기 — 코드·줄별 설명
 
-```html
-@if (loading) {
-  <p>불러오는 중...</p>
-} @else if (errorMessage) {
-  <p class="error-text">{{ errorMessage }}</p>
-} @else if (posts.length === 0) {
-  <p>게시글이 없습니다.</p>
-} @else {
-  <ul class="fruit-list">
-    @for (post of posts; track post.id) {
-      <li class="fruit-card"><a [routerLink]="['/posts', post.id]">{{ post.title }}</a></li>
-    }
-  </ul>
-}
+### 1. 로그인 응답에서 사용자만 보관
+
+```ts
+return this.http.post<ApiResponse<{ user: User; accessToken: string }>>(
+  `${environment.apiBaseUrl}/auth/login`, { email, password }, { withCredentials: true },
+).pipe(
+  map((result) => result.data.user),
+  tap((user) => this.currentUserSignal.set(user)),
+);
 ```
 
-세 가지 상태(`loading`, `errorMessage`, 빈 배열)를 항상 화면에 명시적으로 표현하는 습관은 프레임워크와 무관하게 실무에서 중요합니다(study0 9절).
+1. 공통 로그인 계약으로 POST한다. 비밀번호는 서버로 전달되어 해시 검증된다.
+2. 같은 API의 쿠키를 포함하도록 설정한다.
+3. 응답 토큰을 저장하지 않고 사용자만 꺼낸다.
+4. 사용자 signal을 바꾸면 헤더와 가드가 같은 상태를 본다.
 
-## 5. 게시글 상세 페이지
+복원은 `/auth/me` 응답의 `data`를 signal에 넣는다. 실패하면 null이다. `localStorage`에는 즐겨찾기만 남고 로그인 사용자·JWT는 쓰지 않는다.
 
-`PostDetailPageComponent`는 study5~6에서 배운 라우트 파라미터 읽기(`ActivatedRoute`)와 이번 문서의 `HttpClient`/`catchError`를 조합합니다.
+### 2. 인터셉터의 요청 분기
 
-```typescript
-ngOnInit() {
-  const id = Number(this.route.snapshot.paramMap.get('id'));
-  this.postService.getPost(id).pipe(
-    catchError(() => { this.errorMessage = '게시글을 찾을 수 없습니다.'; return of(null); }),
-  ).subscribe((post) => { this.post = post; this.loading = false; });
-}
+```ts
+const base = environment.apiBaseUrl.replace(/\/$/, '');
+const sameApi = req.url === base || req.url.startsWith(`${base}/`);
+const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+const outgoing = sameApi ? req.clone({
+  withCredentials: true,
+  ...(mutation ? { setHeaders: { 'X-Board-Request': '1' } } : {}),
+}) : req;
 ```
 
-## 6. 백엔드 연동 기록
+1. API 기준 주소 끝의 `/`를 정리한다.
+2. 경로 경계까지 검사해 `/api-other`나 외부 요청을 잘못 포함하지 않는다.
+3. 조회가 아닌 요청인지 판단한다.
+4. API 요청만 복제해 쿠키와 변경 요청 헤더를 설정한다.
+5. 브라우저는 Authorization을 직접 만들지 않는다. 서버의 Bearer 지원은 계약 테스트·외부 API 클라이언트에서 검증한다.
 
-아직 자체 백엔드는 없습니다. React 커리큘럼과 동일하게 JSONPlaceholder(공개 목업 API, `https://jsonplaceholder.typicode.com`)로 실습했습니다. CORS 개념 정리와 실제 백엔드 연동은 study10에서 다룹니다.
+응답 오류에서는 `/auth/me`, `/auth/login`, `/auth/signup`, `/auth/logout`을 조용히 처리한다. 로그아웃 보조 요청의 401은 원래 요청 번호를 덮지 않는다. 그 외 401은 signal을 지우고 쿠키 삭제를 요청한 뒤 `/login?returnUrl=...`로 이동한다. 403·404는 로그아웃하지 않는다. `X-Request-Id`는 오류 서비스로 전달하고 오류를 다시 던진다.
+
+### 3. 직접 확인
+
+1. `/login`에서 `test@example.com / password123`으로 로그인하고 새로고침한다.
+2. `/admin`으로 직접 이동하면 일반 계정은 `/mypage`로 간다.
+3. `admin@example.com / password123`은 관리자 화면과 서버 관리자 API를 통과한다.
+4. 다른 비밀번호로 로그인하면 실패한다. 두 예제 계정은 Development + SeedDemoData에서만 생성된다.
+5. 로그인 화면의 회원가입으로 새 계정을 만들면 자기 글만 수정·삭제 버튼이 보인다.
+
+## ⚠️ 오류 노트
+
+| 증상 | 확인·해결 |
+|---|---|
+| 새로고침 후 비로그인 | `/auth/me` 상태, 쿠키 만료·Secure·같은 호스트 사용 여부를 확인 |
+| 변경 요청 403 | `X-Board-Request`, Origin 허용 목록, 작성자 여부를 차례로 확인 |
+| 로그인 실패가 화면에 안 나타남 | zoneless 비동기 오류 문장을 signal로 둔다 |
+| 로그인 직후 관리자 테스트가 실패 | 로그인 응답과 헤더 이름 표시를 기다린 후 이동 |
+| 로그아웃한 Bearer가 계속 유효 | 로그아웃은 쿠키 삭제다. 별도로 복사한 JWT는 1시간 만료까지 유효하다. 서버 폐기 목록은 미구현 |
+
+## ☐ 체크리스트
+
+- ☑ 로그인 상태는 signal, 복원은 HttpOnly 쿠키와 `GET /api/auth/me`다
+- ☑ 인터셉터에서 401이면 로그인 화면, `X-Request-Id`를 오류 화면에 표시
+- ☑ 가드 + returnUrl, 관리자 가드와 서버 관리자 인가를 확인했다
+- ☑ 실제 비밀번호 해시 검증과 JWT 서명·만료·발급자·대상 검증을 적용했다
+- ☑ 새로고침 로그인 유지. localStorage 동기화는 즐겨찾기에만 적용한다
+- ☑ 비로그인 작성 401, 남의 글 수정·삭제 403, 위조 JWT 거부를 검사했다
+- ☐ 인터셉터로 JWT 붙이기(노션 원문: Authorization 직접 첨부). 현재 Angular는 쿠키 전달을 선택했고 직접 Bearer 첨부는 구현하지 않았다
+- ☐ 서버 JWT 즉시 폐기·갱신, 운영 HTTPS에서 쿠키 검증
+
+## ➡️ 다음 단계 연결
+
+[study8](./study8.md)에서 공통 API 모델, 환경 설정, 서버 비밀의 위치를 분리한다.
