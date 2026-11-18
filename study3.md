@@ -1,95 +1,110 @@
-# study3 — 라이프사이클 훅, ViewChild, 첫 서비스(DI) 실습
+# study3 — 데이터 다루기
 
-## 1. 첫 서비스 만들기 — 의존성 주입(DI) 실전
+> 🎯 **목표**: 인터페이스로 데이터 모양을 고정하고, 필드·signal·Observable 중 어디에 상태를 둘지 고른다.
 
-study0 6절에서 이론으로 다룬 DI를 처음 실전에 적용합니다. `@Injectable({ providedIn: 'root' })`를 붙이면 앱 전체에서 **하나의 인스턴스만 만들어 공유**되는 싱글턴 서비스가 됩니다.
+- 위치: 기초 구간 (study0~10)
+- 대응 코드: [`demo/src/app/models/fruit.model.ts`](./demo/src/app/models/fruit.model.ts), [`demo/src/app/components/counter-practice`](./demo/src/app/components/counter-practice), [`demo/src/app/core/auth/auth.service.ts`](./demo/src/app/core/auth/auth.service.ts), [`project/src/app/models/post.model.ts`](./project/src/app/models/post.model.ts)
+- 이 문서는 Angular만 다룬다.
 
-```typescript
-// services/fruit-inventory.service.ts
-@Injectable({ providedIn: 'root' })
-export class FruitInventoryService {
-  private fruits: Fruit[] = FRUIT_CATALOG.map((fruit) => ({ ...fruit }));
+---
 
-  getFruits(): Fruit[] {
-    return this.fruits;
-  }
+## 📖 이론
 
-  bumpRandomStock() {
-    const index = Math.floor(Math.random() * this.fruits.length);
-    this.fruits[index] = { ...this.fruits[index], stock: this.fruits[index].stock + 1 };
-  }
+Angular에서 "상태"는 특별한 저장소 이름이기 전에, 템플릿이 읽는 값이다.
+
+| 두는 곳 | 맞는 경우 | 이 저장소의 예 |
+|---|---|---|
+| 컴포넌트 필드 | 그 화면에서만 쓰는 값 | 카운터 `count`, 로딩 플래그 |
+| 서비스 필드 | 여러 화면이 같은 값을 봄 | 과일 재고 배열 |
+| `BehaviorSubject` | 지금 값도 필요하고, 이후 변화도 구독해야 함 | `demo`의 로그인 사용자 |
+| `signal` | 지금 값을 함수처럼 읽고, 템플릿이 그 변화만 따라감 | `project`의 로그인·즐겨찾기. study11에서 이어서 본다 |
+| `Observable` | HTTP처럼 나중에 도착하는 값 | 게시글 목록 |
+
+`BehaviorSubject`는 만들어질 때 현재 값을 갖고, 구독하는 즉시 그 값을 한 번 보낸 뒤 이후 `next`도 보낸다. 템플릿에서는 `async` 파이프로 구독한다. 파이프가 구독을 끝내 주므로 컴포넌트가 직접 `unsubscribe`하지 않아도 된다.
+
+모델은 클래스보다 `interface`로 두는 경우가 많다. `Post`는 `id`, `userId`, `title`, `body`만 약속하면 되고, 메서드가 없기 때문이다. HTTP 응답이 이 모양이라고 컴파일러에게 알려 주는 역할이다. 런타임에 서버가 다른 모양을 주면 타입은 막지 못한다. 그건 study16의 검증 문제다.
+
+옵저버블을 직접 구독하면 컴포넌트가 사라질 때 구독을 끊어야 한다. `async` 파이프, `takeUntilDestroyed()`, 또는 HTTP처럼 한 번 끝나고 마치는 스트림이면 누수를 피하기 쉽다. 타이머형 구독은 반드시 해제한다.
+
+---
+
+## 🛠️ 실기
+
+### 1. 모델
+
+`project/src/app/models/post.model.ts`
+
+```ts
+export interface Post {
+  id: number;
+  userId: number;
+  title: string;
+  body: string;
 }
 ```
 
-컴포넌트에서는 **생성자(constructor)에 타입만 선언**하면 Angular가 알아서 인스턴스를 만들어 넣어줍니다. `new FruitInventoryService()`를 직접 호출하는 코드는 어디에도 없습니다.
+1. 게시글 한 건의 필드 이름을 고정한다.
+2. `userId`는 API 응답의 `author.id`를 PostService에서 변환한 작성자 번호다. 서버는 작성 시 클라이언트가 보낸 번호를 신뢰하지 않는다.
+3. 제목과 본문은 문자열이다.
+4. 이 인터페이스를 `HttpClient.get<Post[]>`에 넘기면 응답을 그 배열로 다루게 된다.
 
-```typescript
-constructor(private inventoryService: FruitInventoryService) {}
-```
+과일도 같은 방식이다. `Fruit`은 `id`, `name`, `stock`뿐이다.
 
-React의 Context/Zustand와 비교하면(study0 6절):
+### 2. 화면 안에만 있는 상태
 
-- React: 스토어 파일을 직접 `import`해서 씀 → "내가 이 의존성을 어디서 가져올지" 직접 관리
-- Angular DI: 생성자에 타입만 적으면 프레임워크가 인스턴스를 찾아서 넣어줌 → 테스트할 때 가짜(Mock) 서비스로 쉽게 교체 가능 (study8에서 이 장점을 실제로 체감합니다)
+카운터의 `count = 0`은 그 컴포넌트 밖에서는 보이지 않는다. 다른 화면에 같은 숫자를 보여줄 필요가 생기면 서비스로 올린다. 올리지 않아도 되는 값을 서비스에 넣으면 앱 전체가 그 화면에 묶인다.
 
-## 2. 라이프사이클 훅 — `ngOnInit` / `ngOnDestroy`
+### 3. 여러 화면이 구독하는 상태
 
-React의 `useEffect(() => { ... }, [])`(마운트 시 1회) + `return () => { ... }`(언마운트 시 정리)에 대응하는 것이 Angular 컴포넌트 클래스의 **인터페이스 구현**입니다.
+`demo`의 인증 서비스는 아직 `BehaviorSubject`다. `project`는 같은 역할을 signal로 옮겨 study11의 기준이 된다. demo 쪽 모양은 다음과 같다.
 
-```typescript
-export class FruitStockMonitorComponent implements OnInit, OnDestroy {
-  private intervalId?: ReturnType<typeof setInterval>;
+```ts
+private currentUserSubject = new BehaviorSubject<AuthUser | null>(null);
+currentUser$ = this.currentUserSubject.asObservable();
 
-  ngOnInit() {
-    this.intervalId = setInterval(() => {
-      this.inventoryService.bumpRandomStock();
-      this.tickCount++;
-    }, 2000);
-  }
+get isLoggedIn(): boolean {
+  return this.currentUserSubject.value !== null;
+}
 
-  ngOnDestroy() {
-    clearInterval(this.intervalId);
-  }
+login(username: string) {
+  this.currentUserSubject.next({ username });
 }
 ```
 
-| React | Angular |
-|---|---|
-| `useEffect(() => { setup() }, [])` | `ngOnInit()` |
-| `useEffect`가 반환하는 정리 함수 | `ngOnDestroy()` |
-| 의존성 배열(`[dep1, dep2]`)로 재실행 시점 제어 | 훅이 아니라 **인터페이스**라서 "재실행"이라는 개념이 없음. 값이 바뀔 때마다 뭔가 하려면 `ngOnChanges` 또는 `effect()`(Signal 기반)를 따로 씀 |
+1. 처음 사용자는 `null`이다. `BehaviorSubject`라서 "아직 없음"도 현재 값으로 갖는다.
+2. 바깥에는 `Observable`만 넘긴다. 누가 `next`를 부를지는 서비스가 정한다.
+3. 템플릿이 구독하지 않아도 지금 로그인했는지 바로 읽게 한다.
+4. `next`가 새 사용자를 보내면, 구독 중인 헤더가 다시 그려진다.
 
-`implements OnInit, OnDestroy`는 TypeScript에게 "이 클래스는 `ngOnInit`, `ngOnDestroy` 메서드를 반드시 구현한다"고 알려주는 타입 체크 장치입니다. 실제 호출은 Angular 프레임워크가 컴포넌트 생성/제거 시점에 자동으로 해줍니다.
+헤더 템플릿은 `currentUser$ | async`로 그 스트림을 구독한다. 값이 `null`이면 `@else`의 로그인 링크가 보인다.
 
-Home 화면의 "재고 모니터 언마운트" 버튼으로 `@if`를 꺼보면, 콘솔이나 브라우저 성능 탭에서 타이머가 실제로 멈추는 것(=`ngOnDestroy` 호출)을 확인할 수 있습니다.
+### 4. 목록을 거르는 파생 값
 
-## 3. `ViewChild` — DOM 요소 직접 접근
+게시글 목록은 서버 배열을 그대로 그리지 않는다. 키워드는 서버 검색과 페이지 초기화에 쓰고, 조회 결과와 즐겨찾기 여부를 `combineLatest`로 합쳐 화면에 낼 배열을 만든다. 원본 목록과 걸러진 목록을 둘 다 필드로 복사해 두면 쉽게 어긋난다. 스트림 안에서 `map`으로 만드는 편이 안전하다. 코드는 study6과 study9에서 다시 읽는다.
 
-React의 `useRef` + `ref={inputRef}`에 대응합니다.
+---
 
-```html
-<input #filterInput placeholder="..." />
-<button (click)="focusFilterInput()">ViewChild로 입력창 포커스</button>
-```
+## ⚠️ 오류 노트
 
-```typescript
-@ViewChild('filterInput') filterInput?: ElementRef<HTMLInputElement>;
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| 헤더가 로그인 뒤에도 빈 상태 | 템플릿이 `currentUser$`를 구독하지 않음 | `async` 파이프 또는 signal 읽기 |
+| `Cannot read properties of null` | `async` 결과가 `null`인데 바로 `.name`을 읽음 | `@if (user$ \| async; as user)`로 값이 있을 때만 사용 |
+| 구독이 두 번 실행되어 요청이 두 번 감 | 같은 옵저버블을 템플릿에서 두 번 `async` | 한 번 구독해 지역 변수로 받거나 `shareReplay` |
+| 인터페이스와 다른 서버 필드 | 타입은 컴파일 전용 | 응답에서 필요한 필드가 있는지 좁혀서 사용 |
+| 컴포넌트 필드와 서비스 값이 따로 놈 | 시작 시에만 `this.items = service.get()` | 서비스가 바뀌면 다시 읽거나 스트림으로 연결 |
 
-focusFilterInput() {
-  this.filterInput?.nativeElement.focus();
-}
-```
+---
 
-- `#filterInput`: 템플릿 참조 변수(template reference variable). React에는 없는 문법으로, 템플릿 안에서 특정 엘리먼트를 가리키는 이름표를 붙입니다.
-- `@ViewChild('filterInput')`: 그 이름표가 붙은 엘리먼트를 클래스 필드로 연결합니다. React의 `const inputRef = useRef<HTMLInputElement>(null)` + `<input ref={inputRef} />`와 정확히 같은 역할을 2단계(템플릿 이름표 + 클래스 필드)로 나눠서 합니다.
-- `nativeElement`: 실제 DOM 엘리먼트. React의 `inputRef.current`에 대응.
+## ☐ 체크리스트
 
-## 4. 정리 — 이 컴포넌트가 study0~3 개념을 어떻게 조합하는지
+- ☑ `Post`, `Fruit`, `User` 인터페이스가 있는 파일을 열 수 있다
+- ☑ 화면 전용 상태와 앱 전역 상태를 나눌 수 있다
+- ☑ `BehaviorSubject`의 현재 값과 `Observable` 공개 방식을 설명할 수 있다
+- ☑ `async` 파이프가 구독을 대신한다는 점을 템플릿에서 찾을 수 있다
+- ☑ 옵저버블을 구독하고 해제하는 법을 안다
+- ☑ 파생 목록을 원본과 따로 저장하지 않고 `map`으로 만든다
 
-`FruitStockMonitorComponent` 하나에 지금까지 배운 게 다 들어 있습니다.
+## ➡️ 다음 단계 연결
 
-1. 생성자로 서비스를 주입받음 (DI, 이번 문서 1절)
-2. `ngOnInit`에서 타이머 시작, `ngOnDestroy`에서 정리 (라이프사이클, 이번 문서 2절)
-3. `@ViewChild`로 DOM 접근 (이번 문서 3절)
-4. `@for`로 서비스가 들고 있는 배열을 렌더링 (study1)
-5. Home에서 `@if`로 마운트/언마운트 토글 (study0 2.2절)
+[study4](./study4.md)에서 URL이 어떤 컴포넌트를 여는지, 주소의 id가 데이터 조회로 어떻게 이어지는지 본다.
