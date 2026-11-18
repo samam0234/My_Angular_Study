@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "angular-board": {
+      "command": "node",
+      "args": ["board-mcp/server.mjs"]
+    }
+  }
+}
