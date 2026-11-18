@@ -1,17 +1,28 @@
-<section class="practice">
+﻿<section class="practice">
+  <form [formGroup]="draft" (ngSubmit)="createPost()" class="actions">
+    <input formControlName="title" placeholder="새 글 제목" />
+    <input formControlName="body" placeholder="내용" />
+    <button type="submit" [disabled]="saving()">등록</button>
+  </form>
+  @if (!authService.isLoggedIn) {
+    <p>글 작성은 로그인 후 이용할 수 있습니다.</p>
+  }
+  @if (draftError()) {
+    <p class="error-text" role="alert">{{ draftError() }}</p>
+  }
   <div class="actions">
-    <input [formControl]="keywordControl" placeholder="제목 검색" />
+    <input [formControl]="keywordControl" placeholder="제목·본문 검색" />
     <button [class.active]="showFavoritesOnly" (click)="toggleFavoritesOnly()">
       {{ showFavoritesOnly ? '전체 보기' : '즐겨찾기만 보기' }}
     </button>
   </div>
-
+  @if (loading()) {
+    <p>불러오는 중...</p>
+  }
   @if (viewModel$ | async; as vm) {
-    @if (loading) {
-      <p>불러오는 중...</p>
-    } @else if (errorMessage) {
-      <p class="error-text">{{ errorMessage }}</p>
-    } @else if (vm.items.length === 0) {
+    @if (errorMessage()) {
+      <p class="error-text">{{ errorMessage() }}</p>
+    } @else if (!loading() && vm.items.length === 0) {
       <p>조건에 맞는 게시글이 없습니다.</p>
     } @else {
       <ul class="fruit-list">
@@ -22,15 +33,28 @@
               [isFavorite]="post.isFavorite"
               (toggleFavorite)="onToggleFavorite($event)"
             />
+            @if (authService.currentUser()?.id === post.userId) {
+              <div class="actions">
+                <button type="button" (click)="renamePost(post)">수정</button>
+                <button type="button" (click)="deletePost(post)">삭제</button>
+              </div>
+            }
           </li>
         }
       </ul>
     }
-
-    <div class="actions" style="margin-top: 12px;">
-      <button [disabled]="currentPage === 1" (click)="prevPage()">← 이전</button>
-      <span>{{ currentPage }} 페이지</span>
-      <button [disabled]="vm.rawCount < 10" (click)="nextPage()">다음 →</button>
+    <div class="actions" style="margin-top: 12px">
+      <button [disabled]="currentPage === 1 || loading()" (click)="prevPage()">← 이전</button>
+      <span
+        >{{ vm.meta.page }} / {{ vm.meta.totalPages || 1 }} 페이지 · 전체
+        {{ vm.meta.total }}개</span
+      >
+      <button [disabled]="currentPage >= vm.meta.totalPages || loading()" (click)="nextPage()">
+        다음 →
+      </button>
     </div>
+    @if (showFavoritesOnly) {
+      <p>즐겨찾기는 현재 서버 페이지 안에서 표시합니다.</p>
+    }
   }
 </section>

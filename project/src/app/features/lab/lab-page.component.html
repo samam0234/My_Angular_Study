@@ -1,0 +1,27 @@
+<section class="practice" cdkTrapFocus>
+  <h2>실습실</h2>
+  <p>
+    BehaviorSubject, Signal, NgRx SignalStore를 같은 화면에서 비교합니다. 이 화면은 OnPush입니다.
+  </p>
+
+  <div class="actions">
+    <button type="button" (click)="bumpBehavior()">
+      BehaviorSubject {{ behaviorCount$ | async }}
+    </button>
+    <button type="button" (click)="bumpSignal()">Signal {{ signalCount() }}</button>
+    <button type="button" (click)="counterStore.increment()">
+      NgRx {{ counterStore.count() }}
+    </button>
+    <button type="button" (click)="counterStore.reset()">NgRx 초기화</button>
+  </div>
+
+  <p>지금 시각: {{ now() | formatInstant }}</p>
+
+  <div class="actions">
+    <button type="button" (click)="summarize()">AI 목 요약</button>
+    <button type="button" (click)="showSampleRequestId()">X-Request-Id 표시</button>
+    <button type="button" (click)="checkHealth()">가동 확인</button>
+  </div>
+  <p>{{ summary() }}</p>
+  <p>{{ health() }}</p>
+</section>

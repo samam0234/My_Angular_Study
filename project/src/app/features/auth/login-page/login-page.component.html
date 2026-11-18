@@ -1,7 +1,13 @@
 <section class="practice">
   <h2>로그인</h2>
-  <p>실제 인증 서버 없이, 이메일 형식 + 비밀번호 8자 이상이면 로그인 처리합니다.</p>
-  <button type="button" (click)="fillTestAccount()">테스트 계정 채우기</button>
+  <p>
+    서버가 비밀번호 해시를 검증하고 HttpOnly 쿠키를 발급합니다. 테스트 계정은 로컬 학습 환경에서만
+    제공합니다.
+  </p>
+  <div class="actions">
+    <button type="button" (click)="fillTestAccount()">테스트 계정 채우기</button>
+    <button type="button" (click)="fillAdminAccount()">관리자 계정 채우기</button>
+  </div>
 
   <form [formGroup]="form" (ngSubmit)="onSubmit()">
     <div>
@@ -13,7 +19,7 @@
         <p class="error-text">올바른 이메일 형식이 아닙니다.</p>
       }
     </div>
-    <div style="margin-top: 8px;">
+    <div style="margin-top: 8px">
       <label>
         비밀번호
         <input formControlName="password" type="password" />
@@ -22,8 +28,21 @@
         <p class="error-text">비밀번호는 8자 이상이어야 합니다.</p>
       }
     </div>
-    <div class="actions" style="margin-top: 12px;">
-      <button type="submit">로그인</button>
+    <div class="actions" style="margin-top: 12px">
+      <button type="submit" [disabled]="pending()">로그인</button>
     </div>
+    @if (loginError()) {
+      <p class="error-text" role="alert">{{ loginError() }}</p>
+    }
   </form>
+  <h3>회원가입</h3>
+  <form [formGroup]="signupForm" (ngSubmit)="signup()">
+    <label>가입 이메일 <input type="email" formControlName="email" /></label>
+    <label>가입 비밀번호 <input type="password" formControlName="password" /></label>
+    <label>닉네임 <input formControlName="nickname" /></label>
+    <button type="submit" [disabled]="pending()">회원가입</button>
+  </form>
+  @if (signupMessage()) {
+    <p role="status">{{ signupMessage() }}</p>
+  }
 </section>

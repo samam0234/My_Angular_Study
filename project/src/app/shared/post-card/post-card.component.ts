@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Post } from '../../models/post.model';
 
@@ -6,15 +6,16 @@ import { Post } from '../../models/post.model';
   selector: 'app-post-card',
   imports: [RouterLink],
   templateUrl: './post-card.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PostCardComponent {
   @Input({ required: true }) post!: Post;
   @Input() isFavorite = false;
   @Output() toggleFavorite = new EventEmitter<number>();
 
-  // 카드 전체는 상세 페이지로 이동하는 링크이고, 즐겨찾기 버튼만 페이지 이동 없이 동작해야 한다.
+  // 제목 링크와 별 버튼은 별개의 조작 요소다.
   onFavoriteClick(event: MouseEvent) {
-    event.preventDefault(); // routerLink의 페이지 이동을 막음
+    event.preventDefault();
     event.stopPropagation();
     this.toggleFavorite.emit(this.post.id);
   }

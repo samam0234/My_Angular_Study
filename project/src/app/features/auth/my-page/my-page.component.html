@@ -1,7 +1,7 @@
 <section class="practice">
   @if (currentUser$ | async; as user) {
     <h2>마이페이지</h2>
-    <p>{{ user.name }}님, 환영합니다. ({{ user.email }})</p>
+    <p>{{ user.name }}님, 환영합니다. ({{ user.email }}, {{ user.role }})</p>
 
     @if (favoriteIds$ | async; as ids) {
       <h3>즐겨찾기한 게시글 ({{ ids.length }}개)</h3>

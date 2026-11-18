@@ -3,7 +3,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
 import { catchError, map, startWith } from 'rxjs/operators';
-import { PostService } from '../post.service';
+import { PostDetail, PostService } from '../post.service';
 import { FavoritesService } from '../favorites.service';
 import { AuthService } from '../../../core/auth/auth.service';
 
@@ -20,25 +20,21 @@ export class PostDetailPageComponent {
   private location = inject(Location);
 
   private postId = Number(this.route.snapshot.paramMap.get('id'));
-  loading = true;
-  errorMessage = '';
 
   private detail$ = this.postService.getPostDetail(this.postId).pipe(
-    catchError(() => {
-      this.errorMessage = '게시글을 불러오지 못했습니다.';
-      return of(null);
-    }),
+    map((detail): { detail: PostDetail | null; error: string } => ({ detail, error: '' })),
+    catchError(() => of({ detail: null, error: '게시글을 불러오지 못했습니다.' })),
   );
 
   viewModel$ = combineLatest([
     this.detail$,
     this.favoritesService.favoriteIds$.pipe(startWith(new Set<number>())),
   ]).pipe(
-    map(([detail, favoriteIds]) => {
-      this.loading = false;
-      if (!detail) return null;
-      return { ...detail, isFavorite: favoriteIds.has(detail.post.id) };
-    }),
+    map(([result, favoriteIds]) => ({
+      detail: result.detail,
+      error: result.error,
+      isFavorite: result.detail ? favoriteIds.has(result.detail.post.id) : false,
+    })),
   );
 
   goBack() {

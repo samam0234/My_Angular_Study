@@ -3,7 +3,15 @@
   <nav class="actions">
     <a routerLink="/" routerLinkActive="active-link" [routerLinkActiveOptions]="{ exact: true }">목록</a>
     <a routerLink="/mypage" routerLinkActive="active-link">마이페이지</a>
+    <a routerLink="/admin" routerLinkActive="active-link">관리자</a>
+    <a routerLink="/lab" routerLinkActive="active-link">실습실</a>
   </nav>
+  @if (errorReport.requestId(); as requestId) {
+    <p class="error-text">
+      요청을 처리하지 못했습니다. HTTP {{ errorReport.status() }} · X-Request-Id {{ requestId }}
+      <button type="button" (click)="errorReport.clear()">닫기</button>
+    </p>
+  }
   <div class="auth-status">
     @if (currentUser$ | async; as user) {
       <span>👤 {{ user.name }}님</span>

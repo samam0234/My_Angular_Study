@@ -1,6 +1,6 @@
-<a class="fruit-card post-card" [routerLink]="['/posts', post.id]">
-  <span class="name">{{ post.title }}</span>
-  <button [class.active]="isFavorite" (click)="onFavoriteClick($event)">
+<div class="fruit-card post-card">
+  <a class="name" [routerLink]="['/posts', post.id]">{{ post.title }}</a>
+  <button type="button" [attr.aria-label]="post.title + ' 즐겨찾기'" [attr.aria-pressed]="isFavorite" [class.active]="isFavorite" (click)="onFavoriteClick($event)">
     {{ isFavorite ? '★' : '☆' }}
   </button>
-</a>
+</div>
